@@ -1,0 +1,10 @@
+pandas
+openpyxl
+pydantic
+PyYAML
+python-dotenv
+google-genai
+pypdf
+pdfminer.six
+python-docx
+pytest

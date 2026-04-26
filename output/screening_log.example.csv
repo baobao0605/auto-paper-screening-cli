@@ -1,0 +1,3 @@
+﻿Title,DOI,Decision,Exclude reason,Construct,Note
+Example Paper A,10.0000/example-a,INCLUDE,,target construct,Example row for public template
+Example Paper B,10.0000/example-b,EXCLUDE,Wrong topic,unclear,Example exclusion row

@@ -1,0 +1,28 @@
+﻿# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Python artifacts
+.venv/
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+# Local runtime config
+config/settings.yaml
+
+# Local data and outputs
+data/*.db
+output/*.log
+output/*.csv
+output/*.xlsx
+!output/*.example.csv
+!output/*.example.xlsx
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

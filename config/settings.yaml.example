@@ -1,0 +1,35 @@
+app:
+  name: aiscreening
+  prompt_version: "v1"
+  log_level: "INFO"
+
+paths:
+  input_dir: "input/local_papers"
+  output_dir: "output"
+  database_path: "data/app.db"
+  full_excel_path: "output/screening_log.xlsx"
+  full_csv_path: "output/screening_log.csv"
+  criteria_prompt_path: "config/criteria_prompt.txt"
+
+screening:
+  batch_size: 0
+  skip_done: true
+  retry_failed: true
+  save_raw_response: true
+
+gemini:
+  model: "gemini-2.5-pro"
+  temperature: 0.0
+  max_output_tokens: 2048
+  thinking_budget: 128
+  request_max_retries: 3
+  request_retry_delay_seconds: 2.0
+
+files:
+  allowed_extensions:
+    - ".pdf"
+    - ".docx"
+    - ".txt"
+
+export:
+  sheet_name: "screening_log"
