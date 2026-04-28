@@ -1,2 +1,0 @@
-Title,DOI,Decision,Exclude reason,Construct,Note,Model
-Workspace B paper one,10.1000/workspace-b-one,MAYBE,,unclear,"The full text is too short to determine topic relevance, methodology, or effect size availability.",gemini / gemini-2.5-flash

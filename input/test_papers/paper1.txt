@@ -1,5 +1,0 @@
-﻿Title: Test paper one
-DOI: 10.1000/test-one
-
-This is a short quantitative study about the target construct.
-It reports a sample, measures, and statistical analysis.

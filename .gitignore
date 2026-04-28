@@ -1,27 +1,41 @@
-﻿# Environment and secrets
-.env
-.env.*
-!.env.example
+﻿
+# Runtime/output data
+output/
+data/
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.db
+*.log
 
-# Python artifacts
-.venv/
+# Input papers / local test files
+input/
+!input/.gitkeep
+make_ta_test_excel.py
+make_ta_test_excel_b.py
+
+# Python cache
 __pycache__/
 *.py[cod]
-*.pyo
 .pytest_cache/
 
-# Local runtime config
-config/settings.yaml
+# Virtual environment
+.venv/
+venv/
+env/
 
-# Local data and outputs
-data/*.db
-output/*.log
-output/*.csv
-output/*.xlsx
-!output/*.example.csv
-!output/*.example.xlsx
+# Secrets
+.env
+*.key
+*.pem
 
-# OS/editor noise
+# Build artifacts
+build/
+dist/
+*.spec
+
+# OS / editor
 .DS_Store
 Thumbs.db
 .vscode/
