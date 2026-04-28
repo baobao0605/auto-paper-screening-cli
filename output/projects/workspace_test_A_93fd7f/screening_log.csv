@@ -1,2 +1,0 @@
-Title,DOI,Decision,Exclude reason,Construct,Note,Model
-Workspace A paper one,10.1000/workspace-a-one,EXCLUDE,Wrong publication type,unclear,The paper is a short test paper with no discernible content for screening.,gemini / gemini-2.5-flash

@@ -1,4 +1,0 @@
-﻿Title: Workspace B paper one
-DOI: 10.1000/workspace-b-one
-
-This is a short test paper for workspace B.

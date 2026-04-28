@@ -36,4 +36,3 @@ Output requirements:
 - If Decision is EXCLUDE, Exclude reason must contain exactly one allowed exclusion reason.
 - If Decision is INCLUDE or MAYBE, Exclude reason must be an empty string.
 - Note must be a short factual sentence based on the full text.
-TEST SAVE PROMPT

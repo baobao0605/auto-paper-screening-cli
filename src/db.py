@@ -42,7 +42,6 @@ def initialize_database(connection: sqlite3.Connection) -> None:
             exclude_reason TEXT NOT NULL DEFAULT '',
             construct TEXT,
             note TEXT,
-            screening_model TEXT,
             prompt_version TEXT,
             reviewed_at TEXT,
             discovered_at TEXT NOT NULL,
@@ -71,10 +70,4 @@ def initialize_database(connection: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_screening_runs_paper ON screening_runs(paper_id);
         """
     )
-    columns = {
-        row["name"]
-        for row in connection.execute("PRAGMA table_info(papers)").fetchall()
-    }
-    if "screening_model" not in columns:
-        connection.execute("ALTER TABLE papers ADD COLUMN screening_model TEXT")
     connection.commit()

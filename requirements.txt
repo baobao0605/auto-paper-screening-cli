@@ -8,5 +8,3 @@ pypdf
 pdfminer.six
 python-docx
 pytest
-keyring
-PySide6

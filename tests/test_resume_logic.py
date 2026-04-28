@@ -204,7 +204,7 @@ def test_pipeline_uses_criteria_prompt_file_in_screening_prompt(tmp_path: Path) 
 
 
 def test_rescreen_by_doi_overwrites_existing_conclusion(tmp_path: Path) -> None:
-    pipeline, repository, _ = build_pipeline(tmp_path, [VALID_RESPONSE, VALID_RESPONSE])
+    pipeline, repository, _ = build_pipeline(tmp_path, [VALID_RESPONSE])
     paper = tmp_path / "input" / "local_papers" / "rescreen_target.txt"
     paper.write_text("quantitative study of target construct", encoding="utf-8")
 
@@ -221,7 +221,6 @@ def test_rescreen_by_doi_overwrites_existing_conclusion(tmp_path: Path) -> None:
         exclude_reason="Wrong topic",
         construct="unclear",
         note="Old note.",
-        screening_model="legacy / old-model",
         prompt_version="v-old",
     )
 
