@@ -67,6 +67,51 @@ class GeminiSettings(BaseModel):
     request_retry_delay_seconds: float = 2.0
 
 
+class ProviderSettings(BaseModel):
+    """Top-level provider selection."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    name: str = "gemini"
+
+
+class OpenAICompatibleSettings(BaseModel):
+    """OpenAI-compatible provider options."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    base_url: str = ""
+    model: str = ""
+    timeout_seconds: float = 60.0
+    request_max_retries: int = 3
+    request_retry_delay_seconds: float = 2.0
+
+
+class DeepSeekSettings(BaseModel):
+    """DeepSeek defaults routed through OpenAI-compatible provider."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    base_url: str = "https://api.deepseek.com"
+    model: str = "deepseek-chat"
+    timeout_seconds: float = 60.0
+    request_max_retries: int = 3
+    request_retry_delay_seconds: float = 2.0
+
+
+class AnthropicSettings(BaseModel):
+    """Anthropic/Claude provider options."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    base_url: str = "https://api.anthropic.com"
+    model: str = "claude-3-5-sonnet-20241022"
+    max_tokens: int = 4096
+    timeout_seconds: float = 60.0
+    request_max_retries: int = 3
+    request_retry_delay_seconds: float = 2.0
+
+
 class FileSettings(BaseModel):
     """Allowed local source types."""
 
@@ -90,10 +135,17 @@ class Settings(BaseModel):
 
     base_dir: Path
     gemini_api_key: str | None = None
+    openai_compatible_api_key: str | None = None
+    deepseek_api_key: str | None = None
+    anthropic_api_key: str | None = None
     app: AppSettings = Field(default_factory=AppSettings)
     paths: PathsSettings = Field(default_factory=PathsSettings)
     screening: ScreeningSettings = Field(default_factory=ScreeningSettings)
+    provider: ProviderSettings = Field(default_factory=ProviderSettings)
     gemini: GeminiSettings = Field(default_factory=GeminiSettings)
+    openai_compatible: OpenAICompatibleSettings = Field(default_factory=OpenAICompatibleSettings)
+    deepseek: DeepSeekSettings = Field(default_factory=DeepSeekSettings)
+    anthropic: AnthropicSettings = Field(default_factory=AnthropicSettings)
     files: FileSettings = Field(default_factory=FileSettings)
     export: ExportSettings = Field(default_factory=ExportSettings)
 
@@ -271,6 +323,9 @@ def load_settings(base_dir: Path, config_path: Path | None = None) -> Settings:
         **yaml_payload,
         "base_dir": base_dir.resolve(),
         "gemini_api_key": os.getenv("GEMINI_API_KEY"),
+        "openai_compatible_api_key": os.getenv("OPENAI_COMPATIBLE_API_KEY"),
+        "deepseek_api_key": os.getenv("DEEPSEEK_API_KEY"),
+        "anthropic_api_key": os.getenv("ANTHROPIC_API_KEY"),
         "gemini": gemini_payload,
     }
     return Settings.model_validate(payload)

@@ -1,6 +1,12 @@
-﻿# AI Full-Text Screening CLI
+﻿# AI Full-Text Screening (CLI + Desktop GUI)
 
-This repository is a local-first Python CLI for AI-assisted screening of full-text academic papers. It scans papers already stored in `input/local_papers/`, registers them in SQLite, skips papers that are already completed, screens only eligible unscreened or retryable papers with Gemini, validates model output strictly, and regenerates the full Excel log from SQLite on every export.
+This repository is a local-first Python tool for AI-assisted screening of full-text academic papers.
+
+It includes:
+- CLI: `python -m src.main ...`
+- Desktop GUI MVP: `python -m src.gui_app`
+
+Both modes reuse the same core pipeline: SQLite persistence, deduplication, resume logic, strict output validation, and full export regeneration.
 
 ## Folder Structure
 
@@ -45,24 +51,43 @@ cp .env.example .env
 cp config/settings.yaml.example config/settings.yaml
 ```
 
-4. Edit `.env` and set `GEMINI_API_KEY`.
-5. Optionally adjust `config/settings.yaml` for paths, prompt version, export locations, or model settings.
+If PowerShell blocks venv activation, run:
 
-Useful Gemini retry settings in `config/settings.yaml`:
-
-```yaml
-gemini:
-  request_max_retries: 3
-  request_retry_delay_seconds: 2.0
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 ```
 
-These settings help the CLI recover automatically from transient SSL/network errors such as `UNEXPECTED_EOF_WHILE_READING`.
+## Windows Double-Click GUI Start
+
+After you finish the installation steps above once, you can start GUI by double-clicking:
+- `启动AI筛选GUI.bat` (Chinese filename)
+- or `start_gui.bat` (English filename)
+
+What the script does:
+- Switches to project root
+- Activates `.venv`
+- Runs `python -m src.gui_app`
+- Keeps the window open on exit so errors are visible
+
+Optional hidden launcher:
+- `start_gui_hidden.vbs` (no visible console window)
+- If startup fails, prefer `start_gui.bat` for debugging error output
+
+If the window flashes or startup fails, run manually in PowerShell:
+
+```powershell
+python -m src.gui_app
+```
 
 ## Environment Variables
 
-- `GEMINI_API_KEY`: required for Gemini screening calls.
-- `GEMINI_MODEL`: optional override for the configured Gemini model.
-- `APP_ENV`: optional environment label for local use.
+- `GEMINI_API_KEY`: Gemini key
+- `GOOGLE_API_KEY`: Gemini fallback key
+- `OPENAI_COMPATIBLE_API_KEY`: OpenAI-compatible key
+- `DEEPSEEK_API_KEY`: DeepSeek key
+- `ANTHROPIC_API_KEY`: Anthropic/Claude key
+- `GEMINI_MODEL`: optional override for configured Gemini model
+- `APP_ENV`: optional environment label
 
 ## Input Files
 
@@ -73,13 +98,11 @@ Supported file types:
 - `.docx`
 - `.txt`
 
-The CLI does not move or rename files in `input/local_papers/`.
+The pipeline does not move or rename files in the input directory.
 
-## Commands
+## CLI Commands
 
-Run commands from the repository root.
-
-If `python` is not on your PATH in Windows, replace `python` with `py -3.11`.
+Run from repository root:
 
 ```powershell
 python -m src.main scan
@@ -90,27 +113,15 @@ python -m src.main rescreen-doi --dois "10.1000/one|10.1000/two" --delimiter "|"
 python -m src.main status
 ```
 
-Command behavior:
-- `scan`: discovers files, registers them in SQLite, and marks obvious duplicates.
-- `run`: performs scan, resumes safely, screens only queueable papers, commits each paper immediately, then regenerates the full Excel export.
-- `export`: regenerates the complete Excel file from SQLite.
-- `retry-failed`: reruns only `TEXT_FAILED_RETRY` and `SCREEN_FAILED_RETRY` papers, then exports again.
-- `rescreen-doi`: reruns only the DOI values you specify, overwrites the prior conclusion in SQLite, and then regenerates the full export.
-- `status`: prints summary counts for discovered papers and decisions.
+Behavior summary:
+- `scan`: discover files, register in SQLite, mark duplicates
+- `run`: scan + screen queueable papers + export full log
+- `retry-failed`: rerun retryable failures + export
+- `export`: regenerate full Excel/CSV from SQLite
+- `rescreen-doi`: rerun by exact DOI + overwrite conclusion + export
+- `status`: show summary counts
 
-`rescreen-doi` usage:
-- Put one or more DOI values into `--dois`.
-- The DOI text must match the `DOI` column in `screening_log` exactly.
-- Use `--delimiter` to tell the CLI which symbol connects multiple DOI values. The default delimiter is `|`.
-
-Examples:
-
-```powershell
-python -m src.main rescreen-doi --dois "10.1000/one|10.1000/two" --delimiter "|"
-python -m src.main rescreen-doi --dois "10.1000/one;10.1000/two" --delimiter ";"
-```
-
-Quick local verification after install:
+Quick verification:
 
 ```powershell
 python -m src.main --help
@@ -119,68 +130,243 @@ python -m src.main status
 python -m pytest
 ```
 
-## Resume Behavior
+## Desktop GUI (MVP)
 
-The pipeline stores paper-level state in SQLite and does not re-screen papers that are already completed.
+Start GUI:
+
+```powershell
+python -m src.gui_app
+```
+
+GUI supports:
+- Select input folder
+- Choose provider (`gemini`, `deepseek`, `openai_compatible`, `anthropic`)
+- Set API key, model, base URL
+- Edit and save prompt
+- Start Screening / Retry Failed / Auto Start / Stop Screening
+- Live table refresh (file/status/decision/error)
+- Export Excel/CSV
+- Refresh status
+- Open project output folder
+- Clear current project history
+- View logs
+
+Stop behavior:
+- Stop is cooperative (current paper finishes first)
+- Queue stops before the next paper
+- SQLite state remains consistent for resume
+
+## Project Workspace (Per Input Folder)
+
+GUI uses isolated workspaces by input folder:
+- One `input_dir` maps to one `project_id`
+- Each project has its own SQLite, Excel/CSV, logs, and snapshots
+- Switching input folder switches current project automatically
+- Switching back to an older input folder restores its history
+- Export in GUI only exports the current project
+
+Project id format:
+- `<input_folder_name>_<short_hash_of_absolute_path>`
+- Example: `papers_a83f21`
+
+Output structure:
+
+```text
+output/
+  projects/
+    <project_id>/
+      screening.sqlite
+      screening_log.xlsx
+      screening_log.csv
+      run.log
+      error.log
+      criteria_prompt_snapshot.txt
+      settings_snapshot.json
+```
+
+Clear Current Project History:
+- Deletes current project's SQLite, exports, logs, and snapshots
+- Does not delete original papers in input folder
+
+## Provider Configuration
+
+`config/settings.yaml(.example)` includes:
+- `provider.name`
+- `gemini`
+- `openai_compatible`
+- `deepseek`
+- `anthropic`
+
+Supported provider names:
+- Gemini: `gemini`, `google`, `google_gemini`
+- OpenAI-compatible: `openai_compatible`
+- DeepSeek: `deepseek` (via OpenAI-compatible API)
+- Anthropic: `anthropic`, `claude`
+
+Practical GUI defaults:
+- `gemini`: leave `base_url` empty, set model (for example `gemini-2.5-flash`)
+- `deepseek`: provider `deepseek`, model default is typically `deepseek-chat`, `base_url` can be empty (uses configured default) or custom
+- `openai_compatible`: usually requires explicit `base_url` for your endpoint
+- `anthropic` / `claude`: `base_url` can be empty (uses configured default), set model explicitly in GUI
+
+## Using Other AI Providers / 使用其他 AI 服务商
+
+Current GUI providers:
+- `gemini`
+- `deepseek`
+- `openai_compatible`
+- `anthropic`
+
+If you want to use Kimi, GLM, Qwen, OpenRouter, Together, SiliconFlow, or other third-party platforms:
+- If the platform supports OpenAI-compatible APIs, choose `openai_compatible` in GUI.
+- Fill `base_url` from that platform's official docs.
+- Fill model name required by that platform.
+- Fill API key from that platform.
+- Do not commit real API keys to this repository.
+
+Examples:
+- Gemini:
+  - provider = `gemini`
+  - base_url = empty
+- DeepSeek:
+  - provider = `deepseek`
+  - base_url = empty (or custom)
+- Anthropic / Claude:
+  - provider = `anthropic`
+  - base_url = empty (or custom)
+- Kimi / Moonshot:
+  - provider = `openai_compatible`
+  - base_url/model from Moonshot docs
+- GLM / Zhipu:
+  - provider = `openai_compatible`
+  - base_url/model from Zhipu docs
+- Qwen / DashScope:
+  - provider = `openai_compatible`
+  - base_url/model from DashScope/Qwen docs
+- Other platforms:
+  - provider = `openai_compatible`
+  - base_url/model/api_key from provider docs
+
+Notes:
+- Not all platforms are 100% compatible.
+- If errors occur, first verify base_url, model, api_key, quota/billing, account permissions, region settings, and official provider docs.
+- This project does not include every provider-specific custom parameter. `openai_compatible` is the general integration path.
+
+## GUI Run Modes
+
+Start Screening:
+- Runs normal queue logic for current project (same core behavior as CLI run)
+
+Retry Failed:
+- Only retries failed retryable statuses (`TEXT_FAILED_RETRY`, `SCREEN_FAILED_RETRY`) in current project
+- Does not rerun `DONE`
+
+Auto Start:
+- Phase 1: retry failed papers in current project
+- Phase 2: screen `NEW` papers only in current project
+- Prevents phase-2 from reprocessing retry-failed rows again
+
+## Prompt Management
+
+- Default prompt path: `config/criteria_prompt.txt`
+- GUI uses `PromptManager` to load/save UTF-8 prompt text
+- Prompt validation: non-empty string required
+- Saved prompt persists across restarts because it is written back to disk
+
+## API Key Storage (GUI)
+
+GUI settings path:
+- Windows: `%APPDATA%\ai_fulltext_screening\app_config.json`
+- macOS/Linux: `~/.ai_fulltext_screening/app_config.json`
+
+API key behavior:
+- Prefer keyring when available
+- If keyring unavailable, save under `api_keys` in user `app_config.json`
+- Fallback to environment variables when no saved key exists
+
+Never commit real API keys to repository files.
+
+## Resume Behavior
 
 Queueable statuses:
 - `NEW`
 - `TEXT_FAILED_RETRY`
 - `SCREEN_FAILED_RETRY`
 
-Automatically skipped statuses:
+Skipped statuses:
 - `DONE`
 - `MANUAL_DONE`
 - `SKIPPED_DUPLICATE`
 
-If the process is interrupted, stale `TEXT_EXTRACTED` and `SCREENING` rows are recovered into retryable statuses on the next run.
+Interrupted runs recover stale `TEXT_EXTRACTED` and `SCREENING` rows into retryable states on next run.
 
 ## Deduplication
 
-The pipeline uses stable identity matching in this order:
-
+Identity matching order:
 1. DOI
 2. content hash
 3. file hash
 4. fallback fingerprint
 
-Duplicate copies of the same paper are marked as `SKIPPED_DUPLICATE` and linked to a canonical paper so they do not generate duplicate screening rows or duplicate export rows.
-
 ## Export Behavior
 
-The Excel log is always fully regenerated from SQLite. It is never append-only.
+Exports are always fully regenerated from SQLite (never append-only).
 
-The export contains exactly these columns in this order:
-
+Column order is fixed:
 1. `Title`
 2. `DOI`
 3. `Decision`
 4. `Exclude reason`
 5. `Construct`
 6. `Note`
+7. `Model`
 
-The default export path is `output/screening_log.xlsx`. A matching CSV is also written by default to `output/screening_log.csv`.
+Defaults:
+- Excel: `output/screening_log.xlsx`
+- CSV: `output/screening_log.csv`
 
-The `run` command also regenerates the full Excel export automatically at the end of each run.
-
-The `rescreen-doi` command also regenerates the full Excel export automatically after targeted rescreening.
+`Model` column:
+- Stores actual provider/model used for that row
+- Format example: `gemini / gemini-2.5-flash`
+- Legacy rows created before this feature may have empty model
 
 ## Logging
 
-Logs are written to `output/run.log` and `output/error.log`. Raw Gemini responses are also stored in the `screening_runs` table when `save_raw_response` is enabled.
+- `output/run.log`
+- `output/error.log`
 
-PDF extraction uses `pypdf` first and falls back to `pdfminer.six` for some malformed or truncated PDFs.
+Raw model responses are optionally stored in `screening_runs` when enabled.
 
-## Config and Prompt
-
-- `config/settings.yaml(.example)` controls paths, export locations, prompt version, batching, and Gemini settings.
-- `config/criteria_prompt.txt` is loaded by the app at runtime and inserted into the screening prompt sent to Gemini.
-- `.env` is used for `GEMINI_API_KEY` and optional model overrides.
-
-## Development and Tests
-
-Run the test suite with:
+## Local Verification Commands
 
 ```powershell
+py -3.11 -m venv .venv
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 python -m pytest
+python -m src.main --help
+python -m src.main status
+python -m src.gui_app
 ```
+
+Manual GUI validation checklist:
+1. Choose input folder A, run Start Screening, Export.
+2. Choose input folder B, run Start Screening, Export.
+3. Switch back to A and confirm A history remains.
+4. Click Retry Failed and verify only retryable failed rows are processed.
+5. Click Auto Start and verify retry phase then new-only phase.
+6. Open Project Output Folder and verify workspace files.
+7. Clear Current Project History and verify only current project data is cleared.
+
+## Optional Packaging (PyInstaller)
+
+For a quick local packaging attempt (needs local validation per machine):
+
+```powershell
+python -m pip install pyinstaller
+pyinstaller --noconfirm --windowed --name AI-Screening-GUI src\gui_app.py
+```
+
+Note: packaging behavior can vary by OS and Python environment, so test the generated app on your target machine.

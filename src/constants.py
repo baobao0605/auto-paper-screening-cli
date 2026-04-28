@@ -53,6 +53,7 @@ OUTPUT_COLUMNS = [
     "Exclude reason",
     "Construct",
     "Note",
+    "Model",
 ]
 
 QUEUEABLE_STATUSES = (

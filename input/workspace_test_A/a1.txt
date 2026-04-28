@@ -1,0 +1,4 @@
+﻿Title: Workspace A paper one
+DOI: 10.1000/workspace-a-one
+
+This is a short test paper for workspace A.

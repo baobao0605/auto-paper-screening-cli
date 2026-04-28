@@ -57,6 +57,7 @@ def test_exporter_writes_exact_column_order(tmp_path: Path) -> None:
         exclude_reason="",
         construct="unclear",
         note="The full text is unclear on the measure details.",
+        screening_model="gemini / gemini-test",
         prompt_version="v1",
     )
 
@@ -76,8 +77,10 @@ def test_exporter_writes_exact_column_order(tmp_path: Path) -> None:
         "Exclude reason",
         "Construct",
         "Note",
+        "Model",
     ]
     assert frame.iloc[0]["Decision"] == "MAYBE"
+    assert frame.iloc[0]["Model"] == "gemini / gemini-test"
 
 
 def test_exporter_regenerates_full_workbook_from_database(tmp_path: Path) -> None:
@@ -133,6 +136,7 @@ def test_exporter_regenerates_full_workbook_from_database(tmp_path: Path) -> Non
         exclude_reason="",
         construct="target construct",
         note="First row.",
+        screening_model="gemini / gemini-test",
         prompt_version="v1",
     )
     repository.mark_done(
@@ -143,6 +147,7 @@ def test_exporter_regenerates_full_workbook_from_database(tmp_path: Path) -> Non
         exclude_reason="Wrong topic",
         construct="unclear",
         note="Second row.",
+        screening_model="gemini / gemini-test",
         prompt_version="v1",
     )
 

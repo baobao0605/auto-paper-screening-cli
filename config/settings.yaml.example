@@ -17,11 +17,39 @@ screening:
   retry_failed: true
   save_raw_response: true
 
+provider:
+  name: "gemini"
+
 gemini:
   model: "gemini-2.5-pro"
   temperature: 0.0
   max_output_tokens: 2048
   thinking_budget: 128
+  request_max_retries: 3
+  request_retry_delay_seconds: 2.0
+
+openai_compatible:
+  # Generic OpenAI-compatible provider settings.
+  base_url: ""
+  model: ""
+  timeout_seconds: 60.0
+  request_max_retries: 3
+  request_retry_delay_seconds: 2.0
+
+deepseek:
+  # Used when provider.name is deepseek (internally routes to OpenAI-compatible API).
+  base_url: "https://api.deepseek.com"
+  model: "deepseek-chat"
+  timeout_seconds: 60.0
+  request_max_retries: 3
+  request_retry_delay_seconds: 2.0
+
+anthropic:
+  # Used when provider.name is anthropic or claude.
+  base_url: "https://api.anthropic.com"
+  model: "claude-3-5-sonnet-20241022"
+  max_tokens: 4096
+  timeout_seconds: 60.0
   request_max_retries: 3
   request_retry_delay_seconds: 2.0
 

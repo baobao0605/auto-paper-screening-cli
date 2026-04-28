@@ -4,15 +4,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import logging
+import time
+from typing import Callable
 
 from src.config import Settings
 from src.constants import PaperStatus
 from src.exporter import Exporter
 from src.file_discovery import discover_files
 from src.fingerprint import compute_content_hash, compute_fallback_fingerprint, compute_file_hash
-from src.gemini_client import GeminiClient
 from src.metadata_extract import extract_metadata_from_filename, extract_metadata_from_text
 from src.prompt_builder import build_prompt
+from src.providers.base import LLMProvider
+from src.providers.factory import create_provider
 from src.repository import PaperRecord, PaperRepository
 from src.retry import get_queue_statuses
 from src.state_manager import StateManager
@@ -55,22 +58,15 @@ class ScreeningPipeline:
         settings: Settings,
         repository: PaperRepository,
         logger: logging.Logger,
-        gemini_client: GeminiClient | None = None,
+        llm_provider: LLMProvider | None = None,
+        gemini_client: object | None = None,
     ) -> None:
         self.settings = settings
         self.repository = repository
         self.logger = logger
         self.state_manager = StateManager(repository)
         self.criteria_prompt = settings.criteria_prompt_path.read_text(encoding="utf-8")
-        self.gemini_client = gemini_client or GeminiClient(
-            api_key=settings.gemini_api_key,
-            model_name=settings.gemini.model,
-            temperature=settings.gemini.temperature,
-            max_output_tokens=settings.gemini.max_output_tokens,
-            thinking_budget=settings.gemini.thinking_budget,
-            request_max_retries=settings.gemini.request_max_retries,
-            request_retry_delay_seconds=settings.gemini.request_retry_delay_seconds,
-        )
+        self.llm_provider = llm_provider or gemini_client or create_provider(settings=settings)
         self.exporter = Exporter(
             repository,
             excel_path=settings.excel_path,
@@ -112,7 +108,20 @@ class ScreeningPipeline:
 
         return ScanSummary(discovered=len(files), registered=registered, duplicates=duplicates)
 
-    def run(self, retry_only: bool = False) -> RunSummary:
+    def run(
+        self,
+        retry_only: bool = False,
+        *,
+        statuses_override: tuple[PaperStatus, ...] | None = None,
+        should_cancel: Callable[[], bool] | None = None,
+        on_log: Callable[[str], None] | None = None,
+        on_started: Callable[[dict[str, int]], None] | None = None,
+        on_paper_started: Callable[[dict[str, str]], None] | None = None,
+        on_paper_finished: Callable[[dict[str, str]], None] | None = None,
+        on_paper_error: Callable[[dict[str, str]], None] | None = None,
+        on_finished: Callable[[RunSummary], None] | None = None,
+        on_cancelled: Callable[[RunSummary], None] | None = None,
+    ) -> RunSummary:
         """Run screening over eligible papers and export the full Excel log."""
 
         recovered = self.state_manager.recover_stale_records()
@@ -121,31 +130,79 @@ class ScreeningPipeline:
 
         self.scan()
         queue_limit = self.settings.screening.batch_size
+        statuses = statuses_override or get_queue_statuses(retry_only=retry_only)
         queue = self.repository.get_queue(
-            get_queue_statuses(retry_only=retry_only),
+            statuses,
             limit=queue_limit if queue_limit > 0 else None,
         )
+        if on_started is not None:
+            on_started({"total_count": len(queue)})
 
         done = 0
         failed = 0
         duplicates = 0
+        cancelled = False
         for paper in queue:
+            if should_cancel is not None and should_cancel():
+                cancelled = True
+                if on_log is not None:
+                    on_log("Cancellation requested. Stopping before next paper.")
+                break
+            started_at = time.perf_counter()
+            if on_paper_started is not None:
+                on_paper_started({"file_name": paper.file_name, "paper_id": str(paper.paper_id)})
             outcome = self._process_paper(paper)
+            elapsed = time.perf_counter() - started_at
             if outcome == PaperStatus.DONE.value:
                 done += 1
+                if on_paper_finished is not None:
+                    on_paper_finished(
+                        {
+                            "file_name": paper.file_name,
+                            "paper_id": str(paper.paper_id),
+                            "status": "Done",
+                            "elapsed_seconds": f"{elapsed:.2f}",
+                        }
+                    )
             elif outcome == PaperStatus.SKIPPED_DUPLICATE.value:
                 duplicates += 1
+                if on_paper_finished is not None:
+                    on_paper_finished(
+                        {
+                            "file_name": paper.file_name,
+                            "paper_id": str(paper.paper_id),
+                            "status": "Skipped",
+                            "elapsed_seconds": f"{elapsed:.2f}",
+                        }
+                    )
             else:
                 failed += 1
+                if on_paper_error is not None:
+                    record = self.repository.get_by_id(paper.paper_id)
+                    on_paper_error(
+                        {
+                            "file_name": paper.file_name,
+                            "paper_id": str(paper.paper_id),
+                            "status": "Error",
+                            "error": record.last_error if record and record.last_error else "Unknown error",
+                            "elapsed_seconds": f"{elapsed:.2f}",
+                        }
+                    )
 
         exported_rows = self.exporter.export()
-        return RunSummary(
+        summary = RunSummary(
             queued=len(queue),
             done=done,
             failed=failed,
             duplicates=duplicates,
             exported_rows=exported_rows,
         )
+        if cancelled:
+            if on_cancelled is not None:
+                on_cancelled(summary)
+        elif on_finished is not None:
+            on_finished(summary)
+        return summary
 
     def export(self) -> int:
         """Regenerate the full export from SQLite."""
@@ -244,12 +301,15 @@ class ScreeningPipeline:
 
         self.repository.set_status(paper.paper_id, PaperStatus.SCREENING)
         raw_response: str | None = None
+        provider_name = getattr(self.llm_provider, "provider_name", "unknown")
+        model_name = getattr(self.llm_provider, "model_name", self.settings.gemini.model)
+        screening_model = f"{provider_name} / {model_name}"
         try:
-            raw_response = self.gemini_client.screen(prompt)
+            raw_response = self.llm_provider.screen(prompt)
             validated = validate_model_output(raw_response)
             self.repository.create_screening_run(
                 paper_id=paper.paper_id,
-                model_name=self.settings.gemini.model,
+                model_name=model_name,
                 prompt_version=self.settings.app.prompt_version,
                 raw_response=raw_response if self.settings.screening.save_raw_response else None,
                 parsed_ok=True,
@@ -263,6 +323,7 @@ class ScreeningPipeline:
                 exclude_reason=payload["Exclude reason"],
                 construct=payload["Construct"],
                 note=payload["Note"],
+                screening_model=screening_model,
                 prompt_version=self.settings.app.prompt_version,
             )
             self.logger.info("%s screened successfully as %s", paper.file_name, payload["Decision"])
@@ -271,7 +332,7 @@ class ScreeningPipeline:
             raw_response = raw_response or getattr(exc, "raw_response", None)
             self.repository.create_screening_run(
                 paper_id=paper.paper_id,
-                model_name=self.settings.gemini.model,
+                model_name=model_name,
                 prompt_version=self.settings.app.prompt_version,
                 raw_response=raw_response if self.settings.screening.save_raw_response else None,
                 parsed_ok=False,

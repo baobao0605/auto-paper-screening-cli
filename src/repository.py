@@ -34,6 +34,7 @@ class PaperRecord:
     exclude_reason: str
     construct: str | None
     note: str | None
+    screening_model: str | None
     prompt_version: str | None
     reviewed_at: str | None
     discovered_at: str
@@ -125,11 +126,11 @@ class PaperRepository:
                     source_path, source_type, file_name, file_ext, file_hash,
                     content_hash, fallback_fingerprint, canonical_paper_id,
                     title, doi, status, decision, exclude_reason, construct,
-                    note, prompt_version, reviewed_at, discovered_at,
+                    note, screening_model, prompt_version, reviewed_at, discovered_at,
                     updated_at, last_error
                 )
                 VALUES (?, ?, ?, ?, ?, NULL, ?, NULL, ?, ?, ?, NULL, '', NULL,
-                        NULL, NULL, NULL, ?, ?, NULL)
+                        NULL, NULL, NULL, NULL, ?, ?, NULL)
                 """,
                 (
                     str(source_path),
@@ -234,6 +235,7 @@ class PaperRepository:
                 exclude_reason = '',
                 construct = NULL,
                 note = NULL,
+                screening_model = NULL,
                 prompt_version = NULL,
                 reviewed_at = NULL,
                 last_error = NULL,
@@ -259,6 +261,7 @@ class PaperRepository:
         exclude_reason: str,
         construct: str,
         note: str,
+        screening_model: str,
         prompt_version: str,
     ) -> None:
         """Persist a validated screening result."""
@@ -273,6 +276,7 @@ class PaperRepository:
                 exclude_reason = ?,
                 construct = ?,
                 note = ?,
+                screening_model = ?,
                 prompt_version = ?,
                 reviewed_at = ?,
                 status = ?,
@@ -288,6 +292,7 @@ class PaperRepository:
                 exclude_reason,
                 construct,
                 note,
+                screening_model,
                 prompt_version,
                 reviewed_at,
                 PaperStatus.DONE.value,
@@ -441,6 +446,8 @@ class PaperRepository:
                 exclude_reason AS "Exclude reason",
                 construct AS "Construct",
                 note AS "Note"
+                ,
+                COALESCE(screening_model, '') AS "Model"
             FROM papers
             WHERE status IN (?, ?)
               AND canonical_paper_id IS NULL
@@ -483,3 +490,27 @@ class PaperRepository:
         )
         self.connection.commit()
         return int(cursor.rowcount)
+
+    def get_paper_table_rows(self, limit: int = 1000) -> list[dict[str, str]]:
+        """Return rows for GUI table rendering."""
+
+        rows = self.connection.execute(
+            """
+            SELECT
+                file_name AS "File name",
+                COALESCE(title, '') AS "Title",
+                COALESCE(doi, '') AS "DOI",
+                status AS "Status",
+                COALESCE(decision, '') AS "Decision",
+                COALESCE(exclude_reason, '') AS "Exclude reason",
+                COALESCE(construct, '') AS "Construct",
+                COALESCE(note, '') AS "Note",
+                COALESCE(screening_model, '') AS "Model",
+                COALESCE(last_error, '') AS "Error"
+            FROM papers
+            ORDER BY paper_id DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+        return [dict(row) for row in rows]
