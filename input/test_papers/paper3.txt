@@ -1,0 +1,4 @@
+﻿Title: Test paper three
+DOI: 10.1000/test-three
+
+This is another short quantitative study that measures the target construct and reports statistical results.
